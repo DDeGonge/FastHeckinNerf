@@ -1,0 +1,74 @@
+08-29 22:42:17 com_github_MitjaNemec_ReplicateLayout.action_replicate_layout 326:Plugin executed on: 'win32'
+08-29 22:42:17 com_github_MitjaNemec_ReplicateLayout.action_replicate_layout 327:Plugin executed with python version: '3.9.10 (main, Jul 19 2022, 05:36:50) [MSC v.1932 64 bit (AMD64)]'
+08-29 22:42:17 com_github_MitjaNemec_ReplicateLayout.action_replicate_layout 328:KiCad build version: (6.0.7)
+08-29 22:42:17 com_github_MitjaNemec_ReplicateLayout.action_replicate_layout 329:Plugin version: 1.2.8
+08-29 22:42:17 com_github_MitjaNemec_ReplicateLayout.action_replicate_layout 330:Frame repr: <wx._core.Frame object at 0x0000022ACE91B5E0>
+08-29 22:42:17 com_github_MitjaNemec_ReplicateLayout.action_replicate_layout 354:Preparing replicator with J10 as a reference
+08-29 22:42:17 com_github_MitjaNemec_ReplicateLayout.replicate_layout 110:getting a list of all footprints on board
+08-29 22:42:17 com_github_MitjaNemec_ReplicateLayout.replicate_layout 129:Footprint G*** does not have Sheetfile property, it will not be replicated. Most likely it is only in schematics
+08-29 22:42:17 com_github_MitjaNemec_ReplicateLayout.action_replicate_layout 402:source anchor footprint is 'J10'
+Located on: ['DC Driver 4']
+With filenames: ['dc_driver.kicad_sch']
+With sheet_id:['DC Driver 4']
+08-29 22:42:17 com_github_MitjaNemec_ReplicateLayout.action_replicate_layout 409:Corresponding footprints are 
+[('J10', ['DC Driver 4']), ('J9', ['DC Driver 3']), ('J7', ['DC Driver 1']), ('J8', ['DC Driver 2'])]
+08-29 22:42:17 com_github_MitjaNemec_ReplicateLayout.action_replicate_layout 421:Showing dialog
+08-29 22:42:17 com_github_MitjaNemec_ReplicateLayout.replicate_layout 359:constructing a list of sheets suitable for replication on level:'DC Driver 4', file:'dc_driver.kicad_sch'
+08-29 22:42:17 com_github_MitjaNemec_ReplicateLayout.replicate_layout 396:suitable sheets are:[['DC Driver 1'], ['DC Driver 2'], ['DC Driver 3']]
+08-29 22:42:17 com_github_MitjaNemec_ReplicateLayout.replicate_layout 1323:Level selected: ['DC Driver 4']
+08-29 22:42:17 com_github_MitjaNemec_ReplicateLayout.replicate_layout 1158:Filtering list of tracks
+08-29 22:42:17 com_github_MitjaNemec_ReplicateLayout.action_replicate_layout 427:Toolbar position: wx.Point(1229, 142)
+08-29 22:42:17 com_github_MitjaNemec_ReplicateLayout.action_replicate_layout 432:Dialog position: wx.Point(865, 142)
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 359:constructing a list of sheets suitable for replication on level:'DC Driver 4', file:'dc_driver.kicad_sch'
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 396:suitable sheets are:[['DC Driver 1'], ['DC Driver 2'], ['DC Driver 3']]
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.action_replicate_layout 188:Replicating layout
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 205:Starting replication of sheets: [['DC Driver 1'], ['DC Driver 2'], ['DC Driver 3']]
+on level: ['DC Driver 4']
+with tracks=True, zone=True, text=True, text=True, intersecting=False, remove=True, locked footprints=False, group_only=False
+08-29 22:42:29 root 266:updating GUI message: 'Preparing for replication'
+08-29 22:42:29 root 271:updating GUI with: 0
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 275:Getting the list of source footprints
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 285:Getting the list of all the remaining footprints
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 292:Getting source tracks
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 1158:Filtering list of tracks
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 296:Getting source zones
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 300:Getting source text items
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 304:Getting source drawing items
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 237:Removing tracks and zones, before footprint placement
+08-29 22:42:29 root 266:updating GUI message: 'Removing zones and tracks'
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 1104:Remove bounding box top:75960000, bottom:89555000, Left:221595000, Right:252405000
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 1104:Remove bounding box top:82500000, bottom:95395000, Left:221595000, Right:252405000
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 1104:Remove bounding box top:87645000, bottom:95140000, Left:221595000, Right:242830000
+08-29 22:42:29 root 266:updating GUI message: 'Replicating footprints'
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 710:Replicating footprints
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 716:Replicating footprints on sheet ['DC Driver 1']
+08-29 22:42:29 root 271:updating GUI with: 20
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 716:Replicating footprints on sheet ['DC Driver 2']
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 716:Replicating footprints on sheet ['DC Driver 3']
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 245:Removing tracks and zones, after footprint placement
+08-29 22:42:29 root 266:updating GUI message: 'Removing zones and tracks'
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 1104:Remove bounding box top:75960000, bottom:82160000, Left:220070000, Right:230925000
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 1104:Remove bounding box top:82500000, bottom:88700000, Left:220070000, Right:230925000
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 1104:Remove bounding box top:88940000, bottom:95140000, Left:220070000, Right:230925000
+08-29 22:42:29 root 266:updating GUI message: 'Replicating tracks'
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 876:Replicating tracks
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 882:Replicating tracks on sheet ['DC Driver 1']
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 882:Replicating tracks on sheet ['DC Driver 2']
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 882:Replicating tracks on sheet ['DC Driver 3']
+08-29 22:42:29 root 266:updating GUI message: 'Replicating zones'
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 936:Replicating zones
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 943:Replicating zones on sheet ['DC Driver 1']
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 943:Replicating zones on sheet ['DC Driver 2']
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 943:Replicating zones on sheet ['DC Driver 3']
+08-29 22:42:29 root 266:updating GUI message: 'Replicating text'
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 1014:Replicating text
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 1021:Replicating text on sheet ['DC Driver 1']
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 1021:Replicating text on sheet ['DC Driver 2']
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 1021:Replicating text on sheet ['DC Driver 3']
+08-29 22:42:29 root 266:updating GUI message: 'Replicating drawings'
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 1055:Replicating drawings
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 1061:Replicating drawings on sheet ['DC Driver 1']
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 1061:Replicating drawings on sheet ['DC Driver 2']
+08-29 22:42:29 com_github_MitjaNemec_ReplicateLayout.replicate_layout 1061:Replicating drawings on sheet ['DC Driver 3']
+08-29 22:42:29 root 266:updating GUI message: 'Removing duplicates'
+08-29 22:42:30 com_github_MitjaNemec_ReplicateLayout.action_replicate_layout 204:Replication complete

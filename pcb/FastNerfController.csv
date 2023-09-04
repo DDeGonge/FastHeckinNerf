@@ -1,0 +1,14 @@
+"Id";"Designator";"Package";"Quantity";"Designation";"Supplier and ref";
+1;"R12,R2,R4,R3,R1,R11";"R_0603_1608Metric";6;"100";;;
+2;"J19,J10,J9,J16,J7,J18,J8,J17";"PinHeader_1x02_P2.54mm_Vertical";8;"Conn_01x02";;;
+3;"C8,C5,C4,C6,C3,C7";"C_0805_2012Metric";6;"10uF";;;
+4;"U1";"MUB_v1";1;"MUBv1";;;
+5;"J6,J12,J11,J5";"MountingHole_2.2mm_M2_Pad_Via";4;"Conn_01x01";;;
+6;"C10,C11,C9";"C_0603_1608Metric";3;"0.1uF";;;
+7;"Q1,Q3,Q4,Q2";"POWERDI-3333-8";4;"DMG7430LFG-7";;;
+8;"R7,R8,R9,R6,R10";"R_0603_1608Metric";5;"10k";;;
+9;"J13,J14";"PinHeader_1x04_P2.54mm_Vertical";2;"Conn_01x04";;;
+10;"J3,J1,J4,J2";"PinSocket_1x03_P2.54mm_Vertical";4;"Conn_01x03";;;
+11;"R5";"R_0603_1608Metric";1;"90k";;;
+12;"C1,C2";"CP_Elec_6.3x5.8";2;"47uF";;;
+13;"J15";"PinHeader_1x05_P2.54mm_Vertical";1;"Conn_01x05";;;
