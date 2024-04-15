@@ -1988,7 +1988,7 @@
     (property "Value" "Teensy4.0" (at 13.97 129.54 0)
       (effects (font (size 1.27 1.27)))
     )
-    (property "Footprint" "" (at 3.81 163.83 0)
+    (property "Footprint" "teensy.pretty-master:Teensy40" (at 3.81 163.83 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "" (at 3.81 163.83 0)

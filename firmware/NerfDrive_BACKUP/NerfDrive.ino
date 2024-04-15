@@ -14,14 +14,14 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // Pin setup
 // INPUTS
-#define spinpin 22
-#define shootpin 21
+#define spinpin 27
+#define shootpin 26
 #define uibutton 23
 #define uiscrollpulse 25
 #define uiscrolldir 24
 // OUTPUTS
-#define beltpin 26
-#define flywheelpin 27
+#define beltpin 8
+#define flywheelpin 7
 #define solenoidpin 0
 
 #define INVALID -9999999
@@ -95,15 +95,17 @@ void setup() {
   // attachInterrupt(uiscrollpulse, UI_scrollHandler, CHANGE);
 }
 
-// class BetterServo : public Servo 
-// {
-//   public:
-//     BetterServo(int p, int mn, int mx);
-// };
-
-// BetterServo::BetterServo(int p, int mn, int mx) {
-//   this->attach(p, mn, mx);
-// }
+void arm_servos(Servo myservos[]) {
+  // Janky but it kinda works?
+  for (int i = 0; i < sizeof(myservos) / sizeof(myservos[0]); i++) {
+    myservos[i].writeMicroseconds(1000);
+  }
+  delay(3000);
+  ramp_servos(myservos, 1000, 1400, 0.5);
+  delay(2000);
+  ramp_servos(myservos, 1400, 1000, 0.5);
+  delay(2000);
+}
 
 float get_odrive_vel() {
   Serial1.flush();
@@ -166,44 +168,76 @@ void clear_inputs() {
   scrollDnPressed = false;
 }
 
-// void ramp_servos(BetterServo myservos[], int target_us, float ramptime_s) {
-//   int start_us = myservos[0].readMicroseconds();
-//   if (start_us == target_us) return;
-//   int delay_us = (int)(1000000 / abs(start_us - target_us));
-//   int step_now = start_us;
-//   int sign = start_us < target_us ? 1 : -1;
-//   while (step_now != target_us) {
-//     for (int i = 0; i < sizeof(&myservos) / sizeof(&myservos[0]); i++) {
-//       myservos[i].writeMicroseconds(step_now);
-//     }
-//     step_now += sign;
-//     delayMicroseconds(delay_us);
-//   }
-// }
+void ramp_servo(Servo myservo, int start_us, int end_us, float ramptime_s) {
+  if (start_us == end_us) return;
+  int delay_us = (int)(ramptime_s * 1000000 / abs(start_us - end_us));
+  int step_now = start_us;
+  int sign = start_us < end_us ? 1 : -1;
+  while (step_now != end_us) {
+    myservo.writeMicroseconds(step_now);
+    step_now += sign;
+    delayMicroseconds(delay_us);
+  }
+}
+
+void ramp_servos(Servo myservos[], int start_us, int end_us, float ramptime_s) {
+  if (start_us == end_us) return;
+  int delay_us = (int)(1000000 / abs(start_us - end_us));
+  int step_now = start_us;
+  int sign = start_us < end_us ? 1 : -1;
+  while (step_now != end_us) {
+    for (int i = 0; i < sizeof(myservos) / sizeof(myservos[0]); i++) {
+      myservos[i].writeMicroseconds(step_now);
+    }
+    step_now += sign;
+    delayMicroseconds(delay_us);
+  }
+}
 
 void debug_spin() {
-  Serial.begin(115200);
-  Servo belts, fwheels;
+  Servo belts, flywheels;
   belts.attach(beltpin, 1000, 2000);
-  fwheels.attach(flywheelpin, 1000, 2000);
-  // BetterServo servos[] = { BetterServo(10, 1000, 2000), BetterServo(11, 1000, 2000), BetterServo(12, 1000, 2000), BetterServo(13, 1000, 2000) };
+  flywheels.attach(flywheelpin, 1000, 2000);
+
+  Servo servos[] = {belts, flywheels};
+  arm_servos(servos);
 
   belts.writeMicroseconds(1000);
-  fwheels.writeMicroseconds(1000);
-  delay(2500);
+  flywheels.writeMicroseconds(1000);
+  delay(2000);
+  ramp_servo(belts, 1000, 1300, 0.3);
+  delay(1000);
+  ramp_servo(belts, 1300, 1000, 0.1);
+}
 
-  while (true) {
-    if (Serial.available()) {
-      Serial.readString();
-      Serial.flush();
-      // Serial.println(pval);
-      belts.writeMicroseconds(1250);
-      fwheels.writeMicroseconds(1800);
+void debug_manual() {
+  int allpisn[4] = {7,8,9,10};
+  for (auto &p : allpisn) {
+    // pinMode(p, OUTPUT);
+    // digitalWrite(p, HIGH);
+    // delay(100);
+    // digitalWrite(p, LOW);
+    Servo s;
+    s.attach(p, 1000, 2000);
+    s.writeMicroseconds(1200);
+    delay(100);
+  }
+  delay(10000);
+  return;
 
-      delay(1000);
-      belts.writeMicroseconds(1000);
-      fwheels.writeMicroseconds(1000);
-      delay(500);
+
+  Servo belts, flywheels;
+  belts.attach(beltpin, 1000, 2000);
+  flywheels.attach(flywheelpin, 1000, 2000);
+  belts.writeMicroseconds(1000);
+  flywheels.writeMicroseconds(1000);
+
+  while(true) {
+    if (Serial.available() > 0) {
+        int data = Serial.parseInt();
+        Serial.println(data);
+        belts.writeMicroseconds(data);
+        flywheels.writeMicroseconds(data);
     }
   }
 }
