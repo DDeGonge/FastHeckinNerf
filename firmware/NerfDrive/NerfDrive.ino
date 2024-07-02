@@ -5,7 +5,11 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <SoftwareSerial.h>
 
+// SoftwareSerial odrive_serial(8, 9);
+
+// SDA pin 18, SCL pin 19
 #define SCREEN_WIDTH 128     // OLED display width, in pixels
 #define SCREEN_HEIGHT 32     // OLED display height, in pixels
 #define OLED_RESET -1        // Reset pin # (or -1 if sharing Arduino reset pin)
@@ -14,96 +18,107 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // Pin setup
 // INPUTS
-#define spinpin 22
-#define shootpin 21
-#define uibutton 23
-#define uiscrollpulse 25
-#define uiscrolldir 24
+#define spinpin 16
+#define shootpin 17
+#define magbutton 14
+#define uibutton 20
+#define uiscrollpulse 21
+
 // OUTPUTS
-#define beltpin 26
-#define flywheelpin 27
-#define solenoidpin 0
+#define beltpin0 6
+#define beltpin1 8
+#define fwheelpin0 5
+#define fwheelpin1 7
+#define solenoidpin 15
+#define magservopin 9
 
 #define INVALID -9999999
 
 // Hardware parameters
-static float drum_gear_ratio = 3.0;
-static int drum_mags = 9;
+const float drum_gear_ratio = 3.0;
+const int drum_mags = 9;
+const int rounds_per_mag = 8;
 
 // Operation parameters
-static int belts_off_pwm = 1000;
-static int belts_prime_pwm = 1280;  // was 1150
-static int belts_shoot_pwm = 1430;  // was 1250
-static int fwheel_off_pwm = 1000;
-static int fwheel_prime_pwm = 1500;
-static int fwheel_shoot_pwm = 1900;
-static int default_rps = 80;
-static int max_fire_rps = 101;
-static int debounce_delay = 20;  // Increase if being weird
-static int edit_blink_frames = 20;
+const int belts_off_pwm = 1000;
+const int belts_prime_pwm = 1470; //1175;
+const int belts_shoot_pwm = 1600; //1200;
+const int fwheel_off_pwm = 1000;
+const int fwheel_prime_pwm = 1600;
+const int fwheel_shoot_pwm = 1600;
+const int rps_inc_size = 10;
+const int max_fire_rps = 130;
+const int debounce_delay = 20;  // Increase if being weird
+const int edit_blink_frames = 10;
+const int mag_servo_release_angle = 50;
+const int mag_servo_engage_angle = 175;
+const int mag_engage_time_ms = 500;
+const int solenoid_engage_time_ms = 3; // Extra time added or subtracted to single/burst round timings
+const int burst_qty = 5;
 
 // Interrupt stuff
 static bool buttonPressed = false;
-static bool scrollUpPressed = false;
-static bool scrollDnPressed = false;
+static bool cyclePressed = false;
 
 // Operational State machine parameters
-const int INITIALIZING = 0;
-const int INITIALIZED = 1;
-const int SPINNING_UP = 2;
-const int READY_TO_SHOOT = 3;
-const int SHOOTING = 4;
-const int SPINNING_DOWN = 5;
-const int ERRORSTATE = 6;
+enum op_state_t {
+  INITIALIZING = 0,
+  INITIALIZED,
+  SPINNING_UP,
+  READY_TO_SHOOT,
+  SHOOTING,
+  NOT_SHOOTING,
+  SPINNING_DOWN,
+  MAG_RELEASED,
+  MAG_ENGAGING,
+  ERRORSTATE
+};
 
-int op_state = INITIALIZING;
-int last_state = op_state;
+op_state_t op_state = INITIALIZING;
+op_state_t last_state = op_state;
 bool statechange = false;
+static String error_msg = "";
 
 // UI State machine parameters
-const int SELECTING = 0;
-const int EDITING = 1;
+enum ui_state_t {
+  SELECTING = 0,
+  EDITING
+};
 
-int ui_state = EDITING;
+ui_state_t ui_state = SELECTING;
 
 // UI Fields
-const int FIRE_MODE = 0;
-const int FIRE_RPS = 1;
+enum ui_field_t {
+  FIRE_MODE = 0,
+  FIRE_RPS
+};
 
-int ui_field = FIRE_RPS;
+ui_field_t ui_field = FIRE_RPS;
 
 // Fire Modes
-const int SINGLE = 0;
-const int BURST = 1;
-const int AUTO = 2;
+enum ui_mode_t {
+  SINGLE = 0,
+  BURST,
+  AUTO
+};
 
-int fire_mode = BURST;
-int rounds_per_second = 100;
+ui_mode_t fire_mode = AUTO;
+int rounds_per_second = 20;
 
 // Code and stuff
 void setup() {
-  pinMode(spinpin, INPUT);
-  pinMode(shootpin, INPUT);
+  pinMode(spinpin, INPUT_PULLUP);
+  pinMode(shootpin, INPUT_PULLUP);
+  pinMode(magbutton, INPUT_PULLUP);
   pinMode(solenoidpin, OUTPUT);
-  digitalWrite(solenoidpin, LOW);
+  digitalWriteFast(solenoidpin, LOW);
 
-  // pinMode(uibutton, INPUT_PULLUP);
-  // pinMode(uiscrollpulse, INPUT);
-  // pinMode(uiscrolldir, INPUT);
+  pinMode(uibutton, INPUT_PULLUP);
+  pinMode(uiscrollpulse, INPUT_PULLUP);
 
-  // attachInterrupt(uibutton, UI_buttonHandler, FALLING);
-  // attachInterrupt(uiscrollpulse, UI_scrollHandler, CHANGE);
+  attachInterrupt(uibutton, UI_buttonHandler, FALLING);
+  attachInterrupt(uiscrollpulse, UI_scrollHandler, CHANGE);
 }
-
-// class BetterServo : public Servo 
-// {
-//   public:
-//     BetterServo(int p, int mn, int mx);
-// };
-
-// BetterServo::BetterServo(int p, int mn, int mx) {
-//   this->attach(p, mn, mx);
-// }
 
 float get_odrive_vel() {
   Serial1.flush();
@@ -111,12 +126,12 @@ float get_odrive_vel() {
   String str = "";
   static const unsigned long timeout = 1000;
   unsigned long timeout_start = millis();
-  float vel, pos;
+  float vel = INVALID, pos = INVALID;
   for (;;) {
     while (!Serial1.available()) {
       if (millis() - timeout_start >= timeout) {
         Serial.println("TIMEOUT");
-        break;
+        return INVALID;
       }
     }
     char c = Serial1.read();
@@ -150,6 +165,21 @@ void display_rps() {
   display.print(rounds_per_second);
 }
 
+void display_rounds_remaining(int rounds_remaining) {
+  if (rounds_remaining < 10)
+    display.setCursor(56, 0);
+  else if (rounds_remaining < 100)
+    display.setCursor(50, 0);
+  else
+    display.setCursor(44, 0);
+  display.setTextSize(3);
+  display.print(rounds_remaining);
+
+  display.setCursor(20, 24);
+  display.setTextSize(1);
+  display.print("Rounds Remaining");
+}
+
 void display_mode() {
   display.setCursor(72, 10);
   if (fire_mode == SINGLE)
@@ -162,79 +192,61 @@ void display_mode() {
 
 void clear_inputs() {
   buttonPressed = false;
-  scrollUpPressed = false;
-  scrollDnPressed = false;
+  cyclePressed = false;
 }
 
-// void ramp_servos(BetterServo myservos[], int target_us, float ramptime_s) {
-//   int start_us = myservos[0].readMicroseconds();
-//   if (start_us == target_us) return;
-//   int delay_us = (int)(1000000 / abs(start_us - target_us));
-//   int step_now = start_us;
-//   int sign = start_us < target_us ? 1 : -1;
-//   while (step_now != target_us) {
-//     for (int i = 0; i < sizeof(&myservos) / sizeof(&myservos[0]); i++) {
-//       myservos[i].writeMicroseconds(step_now);
-//     }
-//     step_now += sign;
-//     delayMicroseconds(delay_us);
-//   }
-// }
+bool write_esc_values(Servo s0, Servo s1, uint16_t goal_pwm) {
+  uint16_t pwm_now = s0.readMicroseconds();
+  if (pwm_now == goal_pwm) {
+    return true;
+  } else if (pwm_now < goal_pwm) {
+    s0.writeMicroseconds(pwm_now + 1);
+    s1.writeMicroseconds(pwm_now + 1);
+  } else if (pwm_now > goal_pwm) {
+    s0.writeMicroseconds(pwm_now - 1);
+    s1.writeMicroseconds(pwm_now - 1);
+  }
+  return false;
+}
 
-void debug_spin() {
-  Serial.begin(115200);
-  Servo belts, fwheels;
-  belts.attach(beltpin, 1000, 2000);
-  fwheels.attach(flywheelpin, 1000, 2000);
-  // BetterServo servos[] = { BetterServo(10, 1000, 2000), BetterServo(11, 1000, 2000), BetterServo(12, 1000, 2000), BetterServo(13, 1000, 2000) };
+void set_escs(Servo b0, Servo b1, Servo f0, Servo f1, uint16_t bval_pwm, uint16_t fval_pwm, float rate_pwm_per_s = 0) {
+  // Unspecified ramp rate will set instant values
+  if (rate_pwm_per_s == 0) {
+    b0.writeMicroseconds(bval_pwm);
+    b1.writeMicroseconds(bval_pwm);
+    f0.writeMicroseconds(fval_pwm);
+    f1.writeMicroseconds(fval_pwm);
+    return;
+  }
 
-  belts.writeMicroseconds(1000);
-  fwheels.writeMicroseconds(1000);
-  delay(2500);
-
-  while (true) {
-    if (Serial.available()) {
-      Serial.readString();
-      Serial.flush();
-      // Serial.println(pval);
-      belts.writeMicroseconds(1250);
-      fwheels.writeMicroseconds(1800);
-
-      delay(1000);
-      belts.writeMicroseconds(1000);
-      fwheels.writeMicroseconds(1000);
-      delay(500);
-    }
+  // Otherwise, ramp the profiles
+  uint32_t dwell_us = 1000000 / rate_pwm_per_s;
+  bool b_done = false, f_done = false;
+  while (!b_done || !f_done) {
+    f_done = write_esc_values(f0, f1, fval_pwm);
+    b_done = write_esc_values(b0, b1, bval_pwm);
+    delayMicroseconds(dwell_us);
   }
 }
 
 void loop() {
-
-  // delay(500);
-
-  // TESTING STUFF
-  debug_spin();
-  while (true) {};
-
   // Set up stuff
   uint32_t frame = 0;
+  int invalid_vel_count = 0;
+  int rounds_remaining = drum_mags * rounds_per_mag;
   bool editblink = true;
-  float drum_target_vel = -(default_rps / drum_mags) * drum_gear_ratio;
-  // Servo m0, m1, m2, m3;
+  float drum_target_vel = -(rounds_per_second / drum_mags) * drum_gear_ratio;
+  uint32_t ms_per_round = 0;
+  uint16_t rounds_fired = 0;
+  uint16_t rounds_starting = 0;
+  uint32_t start_firing_time_ms = 0;
+  Servo belt_m0, belt_m1, fwheel_m2, fwheel_m3, magservo;
 
   Serial.begin(115200);
   Serial1.begin(115200);
 
-  ODriveArduino odrive(Serial1);
-
-  // Wait for serial to begin
-  //  while(!Serial);
-  delay(1000);  // Needed to work but idk how long is necessary
-
-  // ODrive Configuration
-  Serial1.println("w axis0.controller.config.vel_limit 40.0");
-  Serial1.println("w axis0.controller.config.vel_ramp_rate 25.0");
-  Serial1.println("w axis0.motor.config.current_lim 40.0");
+  ODriveArduino odrive1(Serial1);
+  delay(500);
 
   // Run the looooop
   while (true) {
@@ -245,6 +257,7 @@ void loop() {
           Serial.println("DISPLAY: Initializing");
           if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
             op_state = ERRORSTATE;
+            error_msg = "Display Failure";
             break;
           }
           display.clearDisplay();
@@ -253,36 +266,46 @@ void loop() {
           display.setCursor(0, 0);              // Start at top-left corner
           display.cp437(true);                  // Use full 256 char 'Code Page 437' font
 
-          // m0.attach(beltpin0, 1000, 2000);
-          // m1.attach(beltpin1, 1000, 2000);
-          // m2.attach(flywheelpin0, 1000, 2000);
-          // m3.attach(flywheelpin1, 1000, 2000);
+          // Start the ESCs
+          belt_m0.attach(beltpin0, 1000, 2000);
+          belt_m1.attach(beltpin1, 1000, 2000);
+          fwheel_m2.attach(fwheelpin0, 1000, 2000);
+          fwheel_m3.attach(fwheelpin1, 1000, 2000);
 
           Serial.println("BLDC: Arming ESCs");
           display.println(F("BLDC: Arming ESCs"));
           display.display();
-          // arm_servo(m0);
-          // arm_servo(m1);
-          // arm_servo(m2);
-          // arm_servo(m3);
+          set_escs(belt_m0, belt_m1, fwheel_m2, fwheel_m3, belts_off_pwm, fwheel_off_pwm);
+          delay(2500);
           Serial.println("BLDC: ESCs Armed");
+          display.println(F("BLDC: ESCs Armed"));
+          display.display();
+
+          // ODrive Configuration
+          Serial.println("ODRIVE: Initializing");
+          while (odrive1.getState() == AXIS_STATE_UNDEFINED) {
+            delay(100);
+          }
+          Serial.println("Found ODrive");
+          Serial1.println("w axis0.controller.config.vel_limit 60.0");
+          Serial1.println("w axis0.controller.config.vel_ramp_rate 50.0");
+          Serial1.println("w axis0.motor.config.current_lim 40.0");
 
           Serial.println("ODRIVE: Starting Calibration");
-          delay(5000);
           display.println(F("ODRIVE: Starting Calibration"));
           display.display();
-          // if(!odrive.run_state(0, AXIS_STATE_FULL_CALIBRATION_SEQUENCE, true, 25.0f)){
-          //   op_state = ERRORSTATE;
-          //   break;
-          // }
-          Serial.println("ODRIVE: Entering Closed-Loop Control");
-          delay(5000);
-          display.println(F("ODRIVE: Entering Closed-Loop Control"));
-          display.display();
-          // if(!odrive.run_state(0, AXIS_STATE_CLOSED_LOOP_CONTROL, false /*don't wait*/)){
-          //   op_state = ERRORSTATE;
-          //   break;
-          // }
+
+          odrive1.setState(AXIS_STATE_FULL_CALIBRATION_SEQUENCE);
+          delay(2000);
+          while (odrive1.getState() != AXIS_STATE_IDLE) {
+            delay(100);
+          }
+          Serial.println("Enabling closed loop control...");
+          while (odrive1.getState() != AXIS_STATE_CLOSED_LOOP_CONTROL) {
+            odrive1.clearErrors();
+            odrive1.setState(AXIS_STATE_CLOSED_LOOP_CONTROL);
+            delay(10);
+          }
 
           display.clearDisplay();
           display.setCursor(0, 0);
@@ -297,6 +320,10 @@ void loop() {
           if (!digitalRead(spinpin)) {
             delay(debounce_delay);
             op_state = SPINNING_UP;
+          }
+          if (!digitalRead(magbutton)) {
+            delay(debounce_delay);
+            op_state = MAG_RELEASED;
           }
 
           // Update display
@@ -317,10 +344,8 @@ void loop() {
             // Handle inputs when in this state
             if (buttonPressed)
               ui_state = EDITING;
-            if (scrollUpPressed)
-              ui_field = (ui_field + 1) % 2;
-            if (scrollDnPressed)
-              ui_field = (ui_field - 1) % 2;
+            if (cyclePressed)
+              ui_field = ui_field == FIRE_RPS ? FIRE_MODE : FIRE_RPS;
             clear_inputs();
 
             // Update display stuff
@@ -334,17 +359,23 @@ void loop() {
             // Handle inputs when in this state
             if (buttonPressed)
               ui_state = SELECTING;
-            if (scrollUpPressed) {
-              if (ui_field == FIRE_RPS)
-                rounds_per_second = (rounds_per_second + 1) % max_fire_rps;
-              else if (ui_field == FIRE_MODE)
-                fire_mode = (fire_mode + 1) % 3;
-            }
-            if (scrollDnPressed) {
-              if (ui_field == FIRE_RPS)
-                rounds_per_second = (rounds_per_second - 1) % max_fire_rps;
-              else if (ui_field == FIRE_MODE)
-                fire_mode = (fire_mode - 1) % 3;
+            if (cyclePressed) {
+              if (ui_field == FIRE_RPS) {
+                rounds_per_second = (rounds_per_second + rps_inc_size) % max_fire_rps;
+                rounds_per_second = rounds_per_second == 0 ? 10 : rounds_per_second;
+              } else if (ui_field == FIRE_MODE) {
+                switch (fire_mode) {
+                  case SINGLE:
+                    fire_mode = BURST;
+                    break;
+                  case BURST:
+                    fire_mode = AUTO;
+                    break;
+                  case AUTO:
+                    fire_mode = SINGLE;
+                    break;
+                }
+              }
             }
             clear_inputs();
 
@@ -368,16 +399,23 @@ void loop() {
         }
       case SPINNING_UP:
         {
-          // TODO delete - Demo mode only
-          op_state = READY_TO_SHOOT;
-          break;
-
           if (statechange) {
-            // m0.writeMicroseconds(belts_prime_pwm);
-            // m1.writeMicroseconds(belts_prime_pwm);
-            // m2.writeMicroseconds(fwheel_prime_pwm);
-            // m3.writeMicroseconds(fwheel_prime_pwm);
-            // odrive.SetVelocity(0, drum_target_vel);
+            drum_target_vel = -(rounds_per_second / drum_mags) * drum_gear_ratio;
+            ms_per_round = 1000 / rounds_per_second;
+            odrive1.setVelocity(drum_target_vel);
+            set_escs(belt_m0, belt_m1, fwheel_m2, fwheel_m3, belts_prime_pwm, fwheel_prime_pwm, 2000);
+
+            display.clearDisplay();
+            display_rounds_remaining(rounds_remaining);
+            display.display();
+
+            // Check for odrive errors
+            if (odrive1.getState() == AXIS_STATE_IDLE)
+            {
+              op_state = ERRORSTATE;
+              error_msg = "ODrive Error !";
+              break;
+            }
           }
 
           // No more spin up
@@ -387,8 +425,14 @@ void loop() {
           }
 
           float drum_vel = get_odrive_vel();
-          if (drum_vel == INVALID)
-            break;
+          if (drum_vel == INVALID) {
+            ++invalid_vel_count;
+            if (invalid_vel_count > 10) {
+              op_state = ERRORSTATE;
+              error_msg = "Invalid ODrive Vel";
+            }
+          } else
+            invalid_vel_count = 0;
           Serial.println(drum_vel);
           if (abs(drum_vel - drum_target_vel) < 0.1)
             op_state = READY_TO_SHOOT;
@@ -397,12 +441,9 @@ void loop() {
       case READY_TO_SHOOT:
         {
           if (statechange) {
-            // m0.writeMicroseconds(belts_prime_pwm);
-            // m1.writeMicroseconds(belts_prime_pwm);
-            // m2.writeMicroseconds(fwheel_prime_pwm);
-            // m3.writeMicroseconds(fwheel_prime_pwm);
-            // odrive.SetVelocity(0, drum_target_vel);
-            // digitalWrite(solenoidpin, LOW);
+            odrive1.setVelocity(drum_target_vel);
+            digitalWriteFast(solenoidpin, LOW);
+            set_escs(belt_m0, belt_m1, fwheel_m2, fwheel_m3, belts_prime_pwm, fwheel_prime_pwm);
           }
 
           // No more spin up
@@ -421,16 +462,65 @@ void loop() {
       case SHOOTING:
         {
           if (statechange) {
-            // m0.writeMicroseconds(belts_shoot_pwm);
-            // m1.writeMicroseconds(belts_shoot_pwm);
-            // m2.writeMicroseconds(fwheel_shoot_pwm);
-            // m3.writeMicroseconds(fwheel_shoot_pwm);
-            // odrive.SetVelocity(0, drum_target_vel);
-            // digitalWrite(solenoidpin, HIGH);
+            odrive1.setVelocity(drum_target_vel);
+            digitalWriteFast(solenoidpin, HIGH);
+            set_escs(belt_m0, belt_m1, fwheel_m2, fwheel_m3, belts_shoot_pwm, fwheel_shoot_pwm);
+
+            delay(solenoid_engage_time_ms);
+            start_firing_time_ms = millis();
+            rounds_starting = rounds_remaining;
+            rounds_fired = 0;
           }
 
+          // Update rounds fired/remaining count
+          int32_t time_elapsed = millis(); 
+          time_elapsed -= start_firing_time_ms;
+          rounds_fired = floor(time_elapsed / ms_per_round);
+          rounds_remaining = max(rounds_starting - rounds_fired, 0);
+          display.clearDisplay();
+          display_rounds_remaining(rounds_remaining);
+          display.display();
+
+          // Stop shooting if rounds fired limit hit for current mode
+          switch (fire_mode)
+          {
+            case SINGLE:
+            {
+              if (rounds_fired >= 1)
+                op_state = NOT_SHOOTING;
+              break;
+            }
+            case BURST:
+            {
+              if (rounds_fired >= burst_qty)
+                op_state = NOT_SHOOTING;
+              break;
+            }
+            case AUTO:
+            {
+              // Some buffer added here in case mag velocity sags
+              if (rounds_fired > (rounds_starting + 10))
+                op_state = NOT_SHOOTING;
+              break;
+            }
+          }
+
+          // Stop shooting if trigger released
           if (digitalRead(shootpin)) {
-            // odrive.SetVelocity(0, 0);
+            op_state = READY_TO_SHOOT;
+            delay(debounce_delay);
+          }
+          break;
+        }
+      case NOT_SHOOTING:
+        {
+          if (statechange) {
+            digitalWriteFast(solenoidpin, LOW);
+            delay(debounce_delay);
+          }
+
+          // Return to ready to shoot once trigger is released
+          if (digitalRead(shootpin)) {
             op_state = READY_TO_SHOOT;
             delay(debounce_delay);
           }
@@ -438,14 +528,9 @@ void loop() {
         }
       case SPINNING_DOWN:
         {
-          op_state = INITIALIZED;
-          break;
           if (statechange) {
-            // m0.writeMicroseconds(belts_off_pwm);
-            // m1.writeMicroseconds(belts_off_pwm);
-            // m2.writeMicroseconds(fwheel_off_pwm);
-            // m3.writeMicroseconds(fwheel_off_pwm);
-            // odrive.SetVelocity(0, 0.0);
+            odrive1.setVelocity(0.0);
+            set_escs(belt_m0, belt_m1, fwheel_m2, fwheel_m3, belts_off_pwm, fwheel_off_pwm);
           }
 
           // Spin back up if button pressed
@@ -456,54 +541,82 @@ void loop() {
 
           // Get drum vel
           float drum_vel = get_odrive_vel();
-          if (drum_vel == INVALID)
-            break;
+          if (drum_vel == INVALID) {
+            ++invalid_vel_count;
+            if (invalid_vel_count > 10) {
+              op_state = ERRORSTATE;
+              error_msg = "Invalid ODrive Vel";
+            }
+          } else
+            invalid_vel_count = 0;
           if (drum_vel < 0.1)
             op_state = INITIALIZED;
+          break;
+        }
+      case MAG_RELEASED:
+        {
+          magservo.attach(magservopin);
+          if (digitalRead(magbutton)) {
+            delay(debounce_delay);
+            op_state = MAG_ENGAGING;
+          }
+          magservo.write(mag_servo_release_angle);
+          break;
+        }
+      case MAG_ENGAGING:
+        {
+          magservo.write(mag_servo_engage_angle);
+          delay(mag_engage_time_ms);
+          magservo.detach();
+          rounds_remaining = drum_mags * rounds_per_mag;
+          op_state = INITIALIZED;
           break;
         }
       case ERRORSTATE:
         {
           if (statechange) {
+            set_escs(belt_m0, belt_m1, fwheel_m2, fwheel_m3, belts_off_pwm, fwheel_off_pwm);
+            odrive1.setVelocity(0.0);
             display.clearDisplay();
             display.setCursor(0, 0);
-            display.setTextSize(3);
+            display.setTextSize(2);
             display.println(F("ERROR"));
+            display.setTextSize(1);
+            display.println(error_msg);
             display.display();
             display.startscrollleft(0x00, 0x0F);
           }
-          digitalWrite(LED_BUILTIN, HIGH);
+          digitalWriteFast(LED_BUILTIN, HIGH);
           delay(100);
-          digitalWrite(LED_BUILTIN, LOW);
+          digitalWriteFast(LED_BUILTIN, LOW);
           delay(100);
           break;
         }
     }
+    // Check for ODrive Errors
+    // Serial.println(odrive1.getState());
+
+    // Handle state changes
     statechange = (last_state != op_state);
     last_state = op_state;
-    Serial.print("STATE: ");
-    Serial.println(op_state);
+    // Serial.print("STATE: ");
+    // Serial.println(op_state);
 
     frame += 1;
-    delay(10);
+    delay(5);
   }
 }
 
 void UI_buttonHandler() {
-  delay(5);
+  delay(debounce_delay);
   if (!digitalRead(uibutton)) {
-    Serial.println("BUTTON");
     buttonPressed = true;
   }
 }
 
 void UI_scrollHandler() {
-  delay(5);
-  if (digitalRead(uiscrolldir) == digitalRead(uiscrollpulse)) {
-    Serial.println("SCROOLL UP");
-    scrollUpPressed = true;
-  } else {
-    Serial.println("SCROOLL DN");
-    scrollDnPressed - true;
+  delay(debounce_delay);
+  if (!digitalRead(uiscrollpulse)) {
+    cyclePressed = true;
   }
 }
